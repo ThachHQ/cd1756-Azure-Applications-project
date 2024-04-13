@@ -13,6 +13,7 @@ class LoginForm(FlaskForm):
 
 class PostForm(FlaskForm):
     title = StringField('Title', validators=[DataRequired()])
+    subtitle = StringField('Sub Title', validators=[DataRequired()])
     author = StringField('Author', validators=[DataRequired()])
     body = TextAreaField('Body', validators=[DataRequired()])
     image_path = FileField('Image', validators=[FileAllowed(['jpg', 'png'], 'Images only!')])
