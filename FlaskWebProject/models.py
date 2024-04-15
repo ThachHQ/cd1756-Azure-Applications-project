@@ -2,13 +2,14 @@ from datetime import datetime
 from FlaskWebProject import app, db, login
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin
-from azure.storage.blob import BlockBlobService
+from azure.storage.blob import BlobServiceClient
 import string, random
-from werkzeug import secure_filename
+from werkzeug.utils import secure_filename
 from flask import flash
 
 blob_container = app.config['BLOB_CONTAINER']
-blob_service = BlockBlobService(account_name=app.config['BLOB_ACCOUNT'], account_key=app.config['BLOB_STORAGE_KEY'])
+blob_account_url = 'https://'+ app.config['BLOB_ACCOUNT']  + '.blob.core.windows.net'
+blob_service = BlobServiceClient(account_url=blob_account_url, credential=app.config['BLOB_STORAGE_KEY'])
 
 def id_generator(size=32, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
@@ -36,6 +37,7 @@ class Post(db.Model):
     __tablename__ = 'posts'
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(150))
+    subtitle = db.Column(db.String(150))
     author = db.Column(db.String(75))
     body = db.Column(db.String(800))
     image_path = db.Column(db.String(100))
@@ -47,6 +49,7 @@ class Post(db.Model):
 
     def save_changes(self, form, file, userId, new=False):
         self.title = form.title.data
+        self.subtitle = form.subtitle.data
         self.author = form.author.data
         self.body = form.body.data
         self.user_id = userId
@@ -57,12 +60,27 @@ class Post(db.Model):
             Randomfilename = id_generator();
             filename = Randomfilename + '.' + fileextension;
             try:
-                blob_service.create_blob_from_stream(blob_container, filename, file)
+                new_img = blob_service.get_blob_client(container=blob_container,blob=filename)
+                new_img.upload_blob(file.read())
                 if(self.image_path):
-                    blob_service.delete_blob(blob_container, self.image_path)
-            except Exception:
+                    old_img = blob_service.get_blob_client(container=blob_container,blob=self.image_path)
+                    old_img.delete_blob()
+            except Exception as e:
                 flash(Exception)
+                app.logger.error(e)
             self.image_path =  filename
         if new:
             db.session.add(self)
         db.session.commit()
+        app.logger.info('Edit Post success!')
+
+    def delete(self):
+        try:
+            if(self.image_path):
+                blob_service.delete_blob(blob_container, self.image_path)
+        except Exception as e:
+            flash(Exception)
+            app.logger.error(e)
+        db.session.delete(self)
+        db.session.commit()
+        app.logger.info('Delete Post success!')
