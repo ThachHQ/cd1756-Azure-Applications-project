@@ -77,7 +77,8 @@ class Post(db.Model):
     def delete(self):
         try:
             if(self.image_path):
-                blob_service.delete_blob(blob_container, self.image_path)
+                img = blob_service.get_blob_client(container=blob_container,blob=self.image_path)
+                img.delete_blob()
         except Exception as e:
             flash(Exception)
             app.logger.error(e)
